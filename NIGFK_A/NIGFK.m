@@ -1,6 +1,4 @@
-function [feature_slc, running_time, savedState] = KMVML(K_X, K_XY, K_Y, param)
-% MVML_FS_Optimization: 基于核方法的多视图多标签特征选择优化算法
-%
+function [feature_slc, running_time, savedState] = NIGFK(K_X, K_XY, K_Y, param)
 % 目标函数:
 % min_{W,H,A,A*} sum_v ( ||Phi(X^v)W^v - Phi(Y)A^v||_F^2 
 %                      + lambda1 * ||Phi(X^v) - Phi(X^v)W^vH^v||_F^2
@@ -17,8 +15,8 @@ function [feature_slc, running_time, savedState] = KMVML(K_X, K_XY, K_Y, param)
 %             param.lambda2 : 共识约束系数
 %             param.beta    : 标签对齐系数
 %             param.gamma   : L2,1 稀疏系数
-%             param.max_iter: 最大迭代次数 (默认 50)
-%             param.epsilon : 收敛阈值 (默认 1e-4)
+%             param.max_iter: 最大迭代次数
+%             param.epsilon : 收敛阈值 
 %
 % 输出:
 %   W           : 1xV cell array, 特征权重矩阵 (用于特征选择)
@@ -66,16 +64,12 @@ function [feature_slc, running_time, savedState] = KMVML(K_X, K_XY, K_Y, param)
     
     obj_history = [];
     
-    % 预计算常数矩阵逆，避免在循环中重复计算
     % A_star 的更新矩阵: (lambda2 * V * I + beta * K_Y)^-1
-    % 为了数值稳定，加入微小扰动 1e-6 * I
-    % Inv_Matrix_A_star = lambda2 * V * eye(c) + beta * K_Y + 1e-6 * eye(c);
     Inv_Matrix_A_star = inv(lambda2 * V * eye(c) + beta * K_Y + 1e-6 * eye(c));
     
     % A_v 的更新矩阵: (K_Y + lambda2 * I)^-1
     Inv_Matrix_A_v = K_Y + lambda2 * eye(c) + 1e-6 * eye(c);
     
-    % fprintf('开始优化... V=%d, c=%d\n', V, c);
 
     %% 2. 迭代优化主循环
     for iter = 1:max_iter
@@ -104,8 +98,6 @@ function [feature_slc, running_time, savedState] = KMVML(K_X, K_XY, K_Y, param)
             % --- 第三步: 更新 H^v (Multiplicative Update) ---
             % 梯度正项(分母): W' * Kx * W * H
             % 梯度负项(分子): W' * Kx
-            % 注意：如果核矩阵存在负值，需要拆分正负部。这里假设通用情况。
-            % 简化处理：假设 Kx 为正定核（如高斯核），元素非负。
             
             Term_H_Num = W{v}' * Kx; 
             Term_H_Den = W{v}' * Kx * W{v} * H{v};
@@ -138,21 +130,11 @@ function [feature_slc, running_time, savedState] = KMVML(K_X, K_XY, K_Y, param)
             % 乘法更新 W，严格保证非负性
             W{v} = W{v} .* (Term_W_Num ./ (Term_W_Den + 1e-9));
             
-            % Term_W_Num = Kxy * A_v{v} + lambda1 * Kx * H{v}';
-            % Term_W_Den = Kx * W{v} + lambda1 * Kx * W{v} * H{v} * H{v}' + gamma * DW;
-            % 
-            % % 乘法更新 W
-            % W{v} = W{v} .* (Term_W_Num ./ (Term_W_Den + 1e-9));
         end
         
         % --- 计算目标函数值 (用于检查收敛) ---
         current_obj = CalculateObjective(K_X, K_XY, K_Y, W, H, A_v, A_star, lambda1, lambda2, beta, gamma);
         obj_history = [obj_history; current_obj];
-        
-        % 打印进度
-        % if mod(iter, 5) == 0 || iter == 1
-        %     fprintf('Iter %d/%d, Objective: %.4e\n', iter, max_iter, current_obj);
-        % end
         
         % 收敛检查
         if iter > 1 && abs(obj_history(end-1) - current_obj) / abs(obj_history(end-1)) < epsilon
@@ -201,8 +183,7 @@ function obj = CalculateObjective(K_X, K_XY, K_Y, W, H, A_v, A_star, l1, l2, bet
         
         % 2. ||Phi(X) - Phi(X)WH||^2
         % = Tr(KX - 2*KX*W*H + H'W'KX*W*H)
-        % 注意: Tr(KX) 是常数，优化时可以忽略，但为了看 Loss 下降，这里算上
-        % 实际上 Tr(KX) 可能很大，我们这里主要计算变量相关的项
+
         trKX = sum(KX(1:size(KX,1)+1:end));
         term2_mid = sum(sum(KX_Wv .* (Hv.')));         % trace(KX*W*H)
         G = Wv' * KX_Wv;                               % W'KXW
