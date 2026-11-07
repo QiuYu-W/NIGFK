@@ -30,4 +30,4 @@ else
     [K_X, K_XY, K_Y] = PSD_ALL(K_F, K_FY, K_T);
 end
 
-[feature_slc] = KMVML(K_X, K_XY, K_Y, params);
+[feature_slc] = NIGFK(K_X, K_XY, K_Y, params);
